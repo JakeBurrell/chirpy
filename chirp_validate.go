@@ -15,10 +15,6 @@ func handlerChirpValidate(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 
-	type errorResponse struct {
-		Error string `json:"error"`
-	}
-
 	type validResponse struct {
 		CleanedBody string `json:"cleaned_body"`
 	}
@@ -57,15 +53,4 @@ func replaceProfanity(chirp string) string {
 		}
 	}
 	return strings.Join(cleaned, " ")
-}
-
-func respondWithJson(w http.ResponseWriter, code int, jsonResponse any) {
-	w.Header().Set("Content-Type", "application/json")
-	dat, err := json.Marshal(jsonResponse)
-	if err != nil {
-		log.Printf("Error marshalling JSON: %s", err)
-		return
-	}
-	w.WriteHeader(code)
-	w.Write(dat)
 }
