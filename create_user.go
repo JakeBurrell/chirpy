@@ -27,7 +27,7 @@ func (cfg *apiConfig) handlersCreateUser(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("Error decoding user parameters: %s", err)
 		respondWithJson(w, http.StatusInternalServerError, errorResponse{
-			Error: "Something went wrong",
+			Error: "Couldn't decode parameters",
 		})
 		return
 	}
@@ -36,7 +36,7 @@ func (cfg *apiConfig) handlersCreateUser(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("Error creating user in database: %s", err)
 		respondWithJson(w, http.StatusInternalServerError, errorResponse{
-			Error: "Something went wrong",
+			Error: "Couldn't create user",
 		})
 	}
 
