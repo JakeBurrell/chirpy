@@ -15,6 +15,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	secret         string
 }
 
 func main() {
@@ -25,6 +26,7 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platformEnv := os.Getenv("PLATFORM")
+	secretEnv := os.Getenv("SECRET")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %v", err)
@@ -36,6 +38,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platformEnv,
+		secret:         secretEnv,
 	}
 
 	mux := http.NewServeMux()
@@ -51,6 +54,7 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
 	mux.HandleFunc("POST /api/users", cfg.handlersCreateUser)
 	mux.HandleFunc("POST /api/chirps", cfg.handlerChirps)
+	mux.HandleFunc("POST /api/login", cfg.handleLogin)
 	mux.HandleFunc("GET /api/chirps", cfg.handlerAllChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", cfg.handlerGetChirp)
 

@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/JakeBurrell/chirpy/internal/auth"
 	"github.com/JakeBurrell/chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -77,10 +79,10 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	const sizeLimit int = 140
 
 	type requestParams struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
+	// Decode Body
 	decoder := json.NewDecoder(r.Body)
 	params := requestParams{}
 	err := decoder.Decode(&params)
@@ -91,6 +93,23 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Validate user
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithJson(w, http.StatusUnauthorized, errorResponse{
+			Error: fmt.Sprintf("Failed to validate authorization: %v", err),
+		})
+		return
+	}
+	loggedInID, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		respondWithJson(w, http.StatusUnauthorized, errorResponse{
+			Error: fmt.Sprintf("Failed to validate token: %v", err),
+		})
+		return
+	}
+
 	if len(params.Body) > sizeLimit {
 		respondWithJson(w, http.StatusBadRequest, errorResponse{
 			Error: "Chrip is too long",
@@ -100,13 +119,14 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 
 	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   replaceProfanity(params.Body),
-		UserID: params.UserID,
+		UserID: loggedInID,
 	})
 	if err != nil {
-		log.Printf("Failed to add chirp to databse: %v", err)
+		log.Printf("Failed to add chirp to database: %v for user %s", err, loggedInID)
 		respondWithJson(w, http.StatusInternalServerError, errorResponse{
 			Error: "Couldn't add chrip to database",
 		})
+		return
 	}
 	log.Printf("New chirp Created")
 	respondWithJson(w, http.StatusCreated, chirpJson{
@@ -114,7 +134,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: chirp.CreatedAt,
 		UpdatedAt: chirp.UpdatedAt,
 		Body:      chirp.Body,
-		UserID:    chirp.UserID,
+		UserID:    loggedInID,
 	})
 
 }
