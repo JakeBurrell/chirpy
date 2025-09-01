@@ -7,21 +7,22 @@ import (
 	"time"
 
 	"github.com/JakeBurrell/chirpy/internal/auth"
+	"github.com/JakeBurrell/chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
 type LoginRequest struct {
-	Password   string `json:"password"`
-	Email      string `json:"email"`
-	ExpiresSec *int   `json:"expires_in_seconds"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
 type LoginResponse struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -52,30 +53,40 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var expirationTime time.Duration
-	if params.ExpiresSec != nil {
-		expirationTime = min(
-			time.Duration(*params.ExpiresSec)*time.Second,
-			time.Hour,
-		)
-	} else {
-		expirationTime = time.Hour
+	token, err := auth.MakeJWT(user.ID, cfg.secret, time.Hour)
+	if err != nil {
+		log.Printf("failed to create jwt token: %v", err)
+		respondWithJson(w, http.StatusInternalServerError, errorResponse{
+			Error: "Failed to create token",
+		})
 	}
 
-	token, err := auth.MakeJWT(user.ID, cfg.secret, expirationTime)
+	refreshToken, err := auth.MakeRefreshToken()
 	if err != nil {
-		log.Printf("failed to create token: %v", err)
+		log.Printf("failed to create refresh token")
+		respondWithJson(w, http.StatusInternalServerError, errorResponse{
+			Error: "Failed to create token",
+		})
+	}
+
+	err = cfg.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:  refreshToken,
+		UserID: user.ID,
+	})
+	if err != nil {
+		log.Printf("failed to add refresh token to database")
 		respondWithJson(w, http.StatusInternalServerError, errorResponse{
 			Error: "Failed to create token",
 		})
 	}
 
 	respondWithJson(w, http.StatusOK, LoginResponse{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     token,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: refreshToken,
 	})
 
 }

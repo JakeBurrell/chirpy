@@ -105,7 +105,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	loggedInID, err := auth.ValidateJWT(token, cfg.secret)
 	if err != nil {
 		respondWithJson(w, http.StatusUnauthorized, errorResponse{
-			Error: fmt.Sprintf("Failed to validate token: %v", err),
+			Error: err.Error(),
 		})
 		return
 	}
