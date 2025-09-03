@@ -75,7 +75,61 @@ func (cfg *apiConfig) handlerAllChirps(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerDeleteChirps(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		log.Printf("Invalid chirp id: %v", err)
+		respondWithJson(w, http.StatusBadRequest, errorResponse{
+			Error: "Invalid chirp id provided",
+		})
+		return
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithJson(w, http.StatusUnauthorized, errorResponse{
+			Error: fmt.Sprintf("Failed to validate authorization: %v", err),
+		})
+		return
+	}
+
+	loggedInID, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		respondWithJson(w, http.StatusUnauthorized, errorResponse{
+			Error: fmt.Sprintf("Invalid token: %v", err),
+		})
+		return
+	}
+
+	chirp, err := cfg.db.GetChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithJson(w, http.StatusNotFound, errorResponse{
+			Error: "Chirp does not exist",
+		})
+		return
+	}
+
+	if chirp.UserID != loggedInID {
+		respondWithJson(w, http.StatusForbidden, errorResponse{
+			Error: "You are not the owner of this chirp",
+		})
+		return
+	}
+
+	err = cfg.db.DeleteChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithJson(w, http.StatusInternalServerError, errorResponse{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	respondWithJson(w, http.StatusNoContent, nil)
+	log.Printf("Chirp %s was deleted", chirpID)
+
+}
+
+func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request) {
 	const sizeLimit int = 140
 
 	type requestParams struct {
